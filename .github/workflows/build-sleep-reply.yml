@@ -1,0 +1,756 @@
+name: Build Sleep Reply APK
+
+on:
+  workflow_dispatch:
+  push:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Create project files
+        run: |
+          mkdir -p app/src/main/java/com/example/sleepreply
+          mkdir -p app/src/main/res/mipmap-anydpi-v26
+          mkdir -p app/src/main/res/drawable-nodpi
+          mkdir -p app/src/main/res/values
+
+          base64 -d > app/src/main/res/drawable-nodpi/ic_launcher_foreground.png <<'EOF'
+          iVBORw0KGgoAAAANSUhEUgAAAUQAAAFECAMAAABoNLf0AAAA/1BMVEWvIiOXLCzfHB5WJSR0JCPf
+          SUjKSEatRUP7P0CfAAHuQT89EBCPQD66QD6nRELOHiDBQD2xPUAAAAD3FBbSCAnpDQ/6IyS2AwT7
+          HiAxBQVQBAV0BgczFBNFBQb4NjZrCAqRCQuvBgfQDA/WFBatCw3GFxjFDA2FCQuvFRf3RUWYAQFU
+          FheXFhdFFxbXKihoFxiWKirHNzaSAwSuAwTXNjaFFhd3KCiHJia7FhfHKCl4FRdrKCehCwyuNzbU
+          Kyt4AQMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAD9PFdRAAAAQHRSTlOca9snR9i3jP/v8BlhnH66pI8A/v7+/fz+DydNDRv7OW22
+          yc6OsrVYkPnYJW4a5zdrsI3KyVdGV6azSDl7jMhqgOp5OgAAEcRJREFUeNrtnQl7osgWhjVLzz5z
+          L1BooQTELblJbva1k/T//1fDUsApaqGwRSE555lJJ0pUXr+zVkkGFtpP2wARIESEiBDRECJCRIgI
+          EQ0hIkSEiBDRECJCRIgIEQ0hIkSEiBDRECJCRIgIEQ0hIkSEiIYQESJCRIhoCBEhIkSEiIYQESJC
+          RIhoCBEhIkSEiIYQESJCRIhoCBEhIkSEiIYQESJCREOICBEhIkQ0hIgQESJCREOICBEhIkQ0hIgQ
+          ESJCREOICBEhIkQ0hIgQEeK2jV5efb++fh/c3N8fnKR2f3MzeB9eP36/nCLEGpueP14PPlJsrmDp
+          zb+e/X7/PuwYy85AnF4Nbxi7cWmu1BKWB4Ph4RQhlnb+9MLw2batACdDeXb8/jhFiJZ1+fTC8GX0
+          coYaIeaW3J2A/D79yhDp1YDJz06JlQBzn3ZNdHly9m14+TUh0teEoF0aoyaYkWufHQ8PvxpE+vrC
+          JAhtzEhuQDHheLYvjvuASB9fOAnKLaZnN+Z4bO7X0z8OuwZx8O3v4XejmuN8INGgGqSKoxStncTH
+          o5pXMT08/PPvb8fHx792DeLpOHWos+Nvw6NDdSl8ee0aiLB070yNGU0ubTOuIsiE4/uhgt734S/f
+          4hd5dpK8j+OLrkEM0rMmaaESl8Jnx7/EMKcVmJcvDQgm5FiYtLlEPS6Tt9TRbdc9uxbpHSfwTuAL
+          8LoGkZavjcRm22kxHAvzl+Fh4eXBuBHC8biSt1lxmPPjBMpjfGXPmGuPp8ese4llrkCRwnwXSBuG
+          Qz40woAI7xEx0uwJb1J68rduvOwexIUGCDlhB9nNKLolKiGtCKknEym7mz2fW+R5yeM/dA9ioAPi
+          TrVylZWL+oZvzPl8pawcu0xkl649VkaQsdc9iFpXda9YDjcgmKbv+Xy5XD6fnp4OU4u/eY5vWM6l
+          JHOxFbHSZXn3VZvGulhsRzqILFtOlEc8L07DdRB4PqW07u2ivhcEk4vwVISYSdMN2MnpIC67CDHU
+          vesf2TG+0rk2eR0XYhhgJCkMiQp76CJEfVCkdZnl4LzpEFKSdXOMTLI6iK7fRYj6oHhem1ncp0ZP
+          N1QTyvPK1Y5C4jYHELrU6z7UZxb3xny4Sl80dXvez13sKCRuE6I2KA7qMktiJ98Nn0qvsTyvvOgO
+          WncToj4ossyir2/cd7MXre/AXZO84ncTIjU5saCG4n39PPD8QNuCu3PGx99VSNzqUFYXFMdXOeql
+          HuPJsOZZnmoGQcWA61XH+rSrELVBsWQzqRHjf6bajOIaybCuPZp0FWJgUG4biNE9O9wwowAZxnaw
+          q5C4VYjaoDiGmXetR/HrsHlxmBbscKZwZO8qJG53oQoERU/g5A6Am/r6eY57LHPpyw89Q4h+eiMc
+          O/FaConbhRjCmOOvKkNFvgwMa/LLUeOM4mmPXVDroaWQuF2I4K1eJBmEVDByPYmnF+PJX7wYaU1x
+          CLU1va8eO08Ig1BMuwuRVoIOXQhifDQWI59fDmtkGGhluK5OP6zuQoRBMXuvvagqRljAeNoEap/9
+          WRx5XSNDoKxLQYbsXtAtPXcZYihGnXVVjGcw2r0Z5RfRPZvIMBDr00mXIVaCoiX1aT4y6r00Jf79
+          RHvMs1aGF7Lim3YZIgyKr2URflCNjEeGy4Rxfvnv9F0vQ6iq6yrupS+dg1tdhsgttMzPVSmEF6N+
+          JuHqZbjUyrAEfDVuq3HePsQ3uBECxPtK0cinabqwNzU4FRSSz6J4evrcXuO8fYgBjwr4dKVobCLG
+          zWQ495QrWn63IfLtcyzGfy4VeuMj40ZiXOui4RrMH1ttnLcPkZ8pplubLlQ9yk+KUSvDMpBQcSL2
+          3HWIbxV/jv/Ptz8IRSPhJrB0tjUZHpSF48O43eWVViBKBEXs5VTl05wYJ+YIwezVOq/KMNR4chsh
+          cesQacWdWWi8UBSNFTGuDBmGGhmWpSE93cEssQ2IMCiuQ0JyVgdXqqKxuRh5GY5VpSFcY1mDJ511
+          H+Ib1Esyf2ByVBaNjcWok2FZGl7+U966orAvWncfIgiKUZJKSO7TcAvRZPPICMo/QYawNBzzaWbe
+          YkjcPkS4eZumqSSPiwRsWooTDNlIjKGmRVlLm7xQNunsOETYPntFeZjrcVC4Gz9pJC58IRMTGVof
+          Y1WTtxSqyaDFKrENiAtRNsCn3VdYNBIgRk7Oq1oZWnSsmCkCTy5uDdsMiS1ABG/6qvRekhXeSdFY
+          NoIr2E/zM75JjQzjgAjveytvnsugtxoSW4AIg+KFuBIQ0xzmvLjtTVeVh1npZFidKtBiOUtaMF60
+          GhLb+IDkHPgoLA9JhjC+Nd+YQ1WbF0QxHgh7/Z8l9TNs8hSzxFk/IC64MU45vE98muSNYHaruOuS
+          fpvKxPgGhg0v2b+w85kLnlz+gr+EhUAbIbENiEFlGgZbPsLvO1+JOxhdOK6diOvy1ydzUcWLin+v
+          /J3NEluCKMwUZesEhCS3hmJcW3CldzraWQAZfuTB0Rvz8roaEyLxZLf1xrkdiJWZYoKxLA+ZiyaO
+          PT61POho56zwIfbvYFwbzAOuvCasbHnl5AVLwzcKPLlqq75AXIjDMPBBuoAUpbc9IMIHSzxh8xOQ
+          4bh0SG5Cc1qGPc2qQFshsRWI4kyRwJbPeiNg8F1dg6OS/SaZPbkZKoncpa3fbmaJbUGk3PpAMVMc
+          gDFOXu7YQoq1ZDvxYpu+uKQYa1iKjxUp1/daDYntXEgjEiGmLR8Y4xARIsssM+nmp3J3SJZXZB9w
+          q/Hk1kJiOxDfoB/nDV/yZX4uFo3VeUUo2RY6vXErqfdV11lfuTbZwVbtdiFaYTFDZGrMvwWjWS+q
+          xES2SO2JS/yPEAqVS21B61YFWmPY1nVxuNollSPJcYIxTgXiqVBmEvevKSfDIqotG63vFQPuXkHM
+          5zb8klVG8eVScdBcTBlxzTjkfVNykE1C6RCnZoLRfYhJ7igJETZ5YInmQq5YucgqPcdC7Irm0JOJ
+          IhpGntVDiBaNiqkr4bI1XM9/E4u40GAnnSeV2IMSIWwdewWRTb9AZGShMfk2X8+fiID0G0p8Ma+w
+          eOjPVTmZ30vbM4iJt3LdSVl6E/ahZM6fLyQDDHm1/CzUl3SolmFrGWUnEJOhDOGHEYTko9l54tMU
+          3r/UNCOavJKWhjv6aPNeILJ9iaRwZxYV0y9JI+hkVSRRZ5a6vBIJg1c+o/hWbyE+8sMvWCqycif5
+          7yGRanETK6TDpnnlQvMLxYibPvYP4sfBJSyqCeGVmMfJ5yWE6NVmFp+lYbjdcE7K1rI6PSoKm3P3
+          uX8QT8HlRfyoTChQi5wlFOozCxWHiXA7ZAXkjIJxbg+L7TDZYkNBfskjYQUcJ87TuswSaYeJlTaS
+          FK3yNPl86rp/ENf8JtmgBmIGYF6XWRZKqRLhx6h4Cx/cdmvF1iAGqTLKLTZ0RmwRYiVI1mYWMa8Q
+          CUTC9dP0Rfwob08gemzcUC4LrIusLMAsgmJdZvErbQ4pK6dKc+QJw0XaP4g0P0f3GhY7IDFLXJst
+          VlHDvAIQwvWG+N9yujgoNNpTiExeL8Vqie97k0m4WMyiSJqn6zJLkVeqc7bEoihaLML1xPP9gtf5
+          QennfexYijgVi/FIipmmSN8Ws1VUpJbsrpV+FpMX7k60miXYghibVGcPYBYZ9RHiHIao+qdJLy05
+          CS1tZsnyCg0n6dUqax/yJX8b21ujahniEuRM0jA1BgbXyqi3B251e9FHiIsyU8Zfm52+r5gnNMsN
+          k6ICJ62uDrQIMbRhKd1wnU2bV5q8grL+mfQR4ppbENgKxNXPQAz6CDGA9WBTZ5J3ddGGASWF2MuF
+          Km97EAkrqzeCmO8doH2ESDmIt6a/pXZnkkOkxhDZ2lhaVfYXYkHR8Dq4T24FIhhE5kqkJ4Yz6jmY
+          cdiO1UeIFjeGte8NrqN99ZG3LDasj6oQbffD4MHOP2zYUkb9hBjB7Exsd1hzBejLF5cQDiLokNMH
+          ySHGjeR73d9QGrhZIM0hzvoJccYNXeW7X4Gl+7Ftkv1wAIuT4vsSYvxgT/qwYIN9K3GXTW77CXEh
+          TLrcG+W1iw9ddsJViHB2W0BMH+xeedXU83u3MkZ3SNhPiCHPUPhILvTkGzc/ELizMHIsIWYBQu7T
+          yXWxOE9OIU76CXECNFTMUMcS/STXlyQ8xLkeIpOnfXItPu3jiS0uRDjE6yfEQASR/HxS1c+jC5da
+          Soji8HsFIGZSc6tX2k92hErWYx3i9xOiJ4GY6eeRq0RcjnIZE/UQszaEVP7sA0sogjlt1tqt7k+U
+          L6YkYixOfAo9mVciqYMo+nSSUOQLOKTNWnsPENMTZ6tXVIxfOoiRADF7tANYJMmF2FeIlgJiatkf
+          5hE4wzpRrUQ+9eaXPnh1iYJhDDHqK0SiZkiIHmKdO3N3MyUG5RbICkLHabVhaRVipGFo+4WoiKE7
+          O6USK/c6DKLiXUsg9nbP9soAItkQoi2DKH8+J4EY9hXiYnOIUa0SbRlEsTxMETrtNiydg8iyaCTN
+          DiCxSN25vMNhln9Dgr5CDLcCMWVgCtGuQCxgen2FOPkJdya8pjKIM1OIjgCR9hYiIbUljjImElFT
+          BUR5JV1CdETrLUSvmiWFgYBBYtFBZGFPiIkSiFZfIfpbgOhoIJbZg4coYRj1FiIlEp909BAricXR
+          QHQEiEQlRHLXf4jVU3JMITrNIGZKlAix3a6v3Y+lEaLWhleF6MBpiwFEIeIFWQXuyCDe9heio4zz
+          VSUWAjWG6MggKp6s5a6vXYiRKcSqZ7LfdLYGcdJfiDOiPi2vOUTnS0JcaCAaKNFRQBTvKyE6mrfs
+          c0MUq+I6iE4ziE6PIa7NIDrNIPobQKT9hTghagfbHCIl8qYugeh8PojBxhBX0t/TQ5xoIFr9heiR
+          mlCvhDiXTtHumDsrIBJHBfGuxxB9dZACEGWamUjN0ytRDXHWY4hUA9HXQtQ/qhKiym4R4s9DDHsM
+          0VL6V507bxnipM8QIwOIjYsR/4tBnDWH2IoSvT5DXNSclwSiP62zoCnEUb8h3jaHaLt1ZjuNIfb6
+          qnVhHUT1/U1s9KkhBruBqFfiyGn70nwtP7462O8K4shxflj9hmj5qlJxRxBHrafmHUBMLm+1x5g4
+          ckbU6j9EVXbZCcT2w+GuIFpBA4h3s9ldbDOd3RlC3EU43BlEixpDNDvpgRHEmOGR9Xkgxv2fIUSz
+          AOaZQIzD4R/Wp4JohUYQTSfQBhBHbY+z9wDROjKBaDptuZVBXBPOlW+tzwcxrhjrIZqWI54MIqgC
+          Rq1Pv/YEMa4Y6yCaO6DeneNw6FmfEyLvhTKImXp89/8ao8IjjSoQR3E4pNanhWhN9BBp3ein2Jrk
+          6SA6uz2pXUMsTn4kgziTpl756ucoV11sDOIPwnT4w/rcEC16p4bI/rq7thXMZ4NhyXAEE8vuKuw9
+          QmThTArRqvfm+BfXrAka5Qw5iDsZOOwfYhIYRzKIrLBzaoYSUXbYXRILcysh3u2B4T4gJoFRBtHE
+          m+PfZNcV+VEiBBBvLeuLQEwDowgxu29RB5FtZ6AyiD+srwMxWQasQBwV3qwlOCp74jtHgOhZXwqi
+          FQoQ6705zyOiP2c37Ivh3iAyvyaVglnnzTkxiT9b+7XOQGThrJ5hwWzgIEQIcZTX0IFkxM/xS6Xo
+          sVIJIXIQ82yx4GaCI7nl/lz8PPvSENnqS9nvSr1XpMj78631tSGmQ8aR6M0jreWZPD1sp+PXbkJM
+          eumYBPPmGTFhWGgPAP3iEJMEwdTEQuSo3hj/+DtqIcTULXNvnhBDhoU/zywLIbLAyNwzMoWY+/MP
+          CyFKC56RkVldsi5BNPbm0W8jDyHKLTIW4m/7rw07CjH15pGhOQhR1b0USvtfnQ0Q4iczhIgQESJC
+          REOICBEhIkQ0hIgQESJCREOICBEhIkQ0hIgQESJCREOICBEhIkQ0hIgQESIaQkSICBEhoiFEhIgQ
+          ESIaQkSICBEhoiFEhIgQESIaQkSICBEhoiFEhIgQESIaQkSICBENISJEhIgQ0RAiQkSICBENISJE
+          hIgQ0RAiQkSICBENISJEhIgQ0RAiQuy3/QsdFsDe0SDo0AAAAABJRU5ErkJggg==
+          EOF
+
+          cat > app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+              <background android:drawable="@color/ic_launcher_background" />
+              <foreground android:drawable="@drawable/ic_launcher_foreground" />
+          </adaptive-icon>
+          EOF
+
+          cat > app/src/main/res/values/colors.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <color name="ic_launcher_background">#0E0F12</color>
+          </resources>
+          EOF
+
+          cat > settings.gradle.kts <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "SleepReply"
+          include(":app")
+          EOF
+
+          cat > build.gradle.kts <<'EOF'
+          plugins {
+              id("com.android.application") version "8.5.2" apply false
+              id("org.jetbrains.kotlin.android") version "1.9.24" apply false
+          }
+          EOF
+
+          cat > app/build.gradle.kts <<'EOF'
+          plugins {
+              id("com.android.application")
+              id("org.jetbrains.kotlin.android")
+          }
+
+          android {
+              namespace = "com.example.sleepreply"
+              compileSdk = 34
+
+              defaultConfig {
+                  applicationId = "com.example.sleepreply"
+                  minSdk = 28
+                  targetSdk = 34
+                  versionCode = 2
+                  versionName = "2.0"
+              }
+
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+              kotlinOptions {
+                  jvmTarget = "17"
+              }
+          }
+          EOF
+
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+              <uses-permission android:name="android.permission.INTERNET" />
+
+              <application
+                  android:icon="@mipmap/ic_launcher"
+                  android:label="Sleep Reply"
+                  android:theme="@android:style/Theme.Material.Light.DarkActionBar">
+
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+
+                  <service
+                      android:name=".ReplyService"
+                      android:exported="true"
+                      android:label="Sleep Reply"
+                      android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+                      <intent-filter>
+                          <action android:name="android.service.notification.NotificationListenerService" />
+                      </intent-filter>
+                  </service>
+              </application>
+          </manifest>
+          EOF
+
+          cat > app/src/main/java/com/example/sleepreply/Prefs.kt <<'EOF'
+          package com.example.sleepreply
+
+          object Prefs {
+              const val NAME = "sleep_reply"
+              const val ENABLED = "enabled"
+              const val MESSAGE = "message"
+              const val START = "start_minutes"
+              const val END = "end_minutes"
+              const val USE_WINDOW = "use_window"
+
+              const val MODE = "mode"
+              const val MODE_CUSTOM = "custom"
+              const val MODE_AI = "ai"
+
+              const val API_KEY = "gemini_key"
+              const val MODEL = "gemini_model"
+              const val INSTRUCTIONS = "ai_instructions"
+
+              const val DEFAULT_MESSAGE = "I'm sleeping, catch you later."
+              const val DEFAULT_MODEL = "gemini-flash-latest"
+              const val DEFAULT_INSTRUCTIONS =
+                  "You are replying on behalf of the phone's owner, who is currently unavailable (for example sleeping). " +
+                  "Reply in the same language as the incoming message. Keep it short (1-2 sentences), friendly and natural. " +
+                  "Do not invent facts or make promises. If the person needs something, say the owner will reply when they are back."
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/sleepreply/Gemini.kt <<'EOF'
+          package com.example.sleepreply
+
+          import org.json.JSONArray
+          import org.json.JSONObject
+          import java.net.HttpURLConnection
+          import java.net.URL
+
+          object Gemini {
+
+              class Turn(val role: String, val text: String)
+
+              class HttpException(val code: Int, message: String) : Exception(message)
+
+              fun reply(apiKey: String, model: String, instructions: String, turns: List<Turn>): String {
+                  return try {
+                      call(apiKey, model, instructions, turns, true)
+                  } catch (e: HttpException) {
+                      // some models reject the thinking setting, retry without it
+                      if (e.code == 400) call(apiKey, model, instructions, turns, false) else throw e
+                  }
+              }
+
+              private fun call(
+                  apiKey: String,
+                  model: String,
+                  instructions: String,
+                  turns: List<Turn>,
+                  thinkingOff: Boolean
+              ): String {
+                  val merged = ArrayList<Turn>()
+                  for (t in turns) {
+                      if (merged.isNotEmpty() && merged.last().role == t.role) {
+                          val prev = merged.removeAt(merged.size - 1)
+                          merged.add(Turn(t.role, prev.text + "\n" + t.text))
+                      } else {
+                          merged.add(t)
+                      }
+                  }
+
+                  val contents = JSONArray()
+                  for (t in merged) {
+                      val part = JSONObject().put("text", t.text)
+                      contents.put(
+                          JSONObject()
+                              .put("role", t.role)
+                              .put("parts", JSONArray().put(part))
+                      )
+                  }
+
+                  val generation = JSONObject()
+                      .put("maxOutputTokens", 512)
+                      .put("temperature", 0.8)
+                  if (thinkingOff) {
+                      generation.put("thinkingConfig", JSONObject().put("thinkingBudget", 0))
+                  }
+
+                  val system = JSONObject().put(
+                      "parts",
+                      JSONArray().put(JSONObject().put("text", instructions))
+                  )
+
+                  val body = JSONObject()
+                      .put("system_instruction", system)
+                      .put("contents", contents)
+                      .put("generationConfig", generation)
+
+                  val url = URL("https://generativelanguage.googleapis.com/v1beta/models/" + model.trim() + ":generateContent")
+                  val conn = url.openConnection() as HttpURLConnection
+                  try {
+                      conn.requestMethod = "POST"
+                      conn.connectTimeout = 15000
+                      conn.readTimeout = 30000
+                      conn.doOutput = true
+                      conn.setRequestProperty("Content-Type", "application/json")
+                      conn.setRequestProperty("x-goog-api-key", apiKey.trim())
+                      conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+
+                      val code = conn.responseCode
+                      val stream = if (code in 200..299) conn.inputStream else conn.errorStream
+                      val response = stream?.bufferedReader()?.use { it.readText() } ?: ""
+                      if (code !in 200..299) throw HttpException(code, "HTTP " + code + ": " + response)
+
+                      val candidates = JSONObject(response).optJSONArray("candidates")
+                          ?: throw Exception("No reply from Gemini")
+                      val parts = candidates.getJSONObject(0)
+                          .optJSONObject("content")
+                          ?.optJSONArray("parts")
+                          ?: throw Exception("Empty reply from Gemini")
+                      val sb = StringBuilder()
+                      for (i in 0 until parts.length()) {
+                          sb.append(parts.getJSONObject(i).optString("text"))
+                      }
+                      val out = sb.toString().trim()
+                      if (out.isEmpty()) throw Exception("Empty reply from Gemini")
+                      return out
+                  } finally {
+                      conn.disconnect()
+                  }
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/sleepreply/ReplyService.kt <<'EOF'
+          package com.example.sleepreply
+
+          import android.app.Notification
+          import android.app.PendingIntent
+          import android.app.RemoteInput
+          import android.content.Context
+          import android.content.Intent
+          import android.os.Bundle
+          import android.service.notification.NotificationListenerService
+          import android.service.notification.StatusBarNotification
+          import java.util.Calendar
+          import java.util.concurrent.ConcurrentHashMap
+          import java.util.concurrent.Executors
+
+          class ReplyService : NotificationListenerService() {
+
+              private val lastSeen = HashMap<String, String>()
+              private val lastReply = ConcurrentHashMap<String, String>()
+              private val history = HashMap<String, ArrayList<Gemini.Turn>>()
+              private val worker = Executors.newSingleThreadExecutor()
+
+              override fun onDestroy() {
+                  worker.shutdown()
+                  super.onDestroy()
+              }
+
+              override fun onNotificationPosted(sbn: StatusBarNotification) {
+                  val prefs = getSharedPreferences(Prefs.NAME, Context.MODE_PRIVATE)
+                  if (!prefs.getBoolean(Prefs.ENABLED, true)) return
+                  if (sbn.packageName !in listOf("com.whatsapp", "com.whatsapp.w4b", "com.facebook.orca", "com.facebook.mlite")) return
+                  if (prefs.getBoolean(Prefs.USE_WINDOW, true) &&
+                      !inSleepWindow(prefs.getInt(Prefs.START, 23 * 60), prefs.getInt(Prefs.END, 7 * 60))
+                  ) return
+
+                  val n = sbn.notification
+                  if ((n.flags and Notification.FLAG_GROUP_SUMMARY) != 0) return
+                  if (n.extras.getBoolean(Notification.EXTRA_IS_GROUP_CONVERSATION, false)) return
+
+                  val title = n.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: return
+                  val text = n.extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: ""
+                  val customMessage = prefs.getString(Prefs.MESSAGE, Prefs.DEFAULT_MESSAGE) ?: Prefs.DEFAULT_MESSAGE
+                  val aiMode = prefs.getString(Prefs.MODE, Prefs.MODE_CUSTOM) == Prefs.MODE_AI
+
+                  // ignore our own replies showing up as notifications
+                  if (customMessage.isNotEmpty() && text.contains(customMessage)) return
+                  val previous = lastReply[title]
+                  if (previous != null && (text == previous || text.endsWith(": " + previous))) return
+
+                  val signature = n.`when`.toString() + "|" + text
+                  if (lastSeen[title] == signature) return
+
+                  val action = findReplyAction(n) ?: return
+                  lastSeen[title] = signature
+
+                  if (!aiMode) {
+                      if (customMessage.isBlank()) return
+                      if (sendReply(action, customMessage)) lastReply[title] = customMessage
+                      return
+                  }
+
+                  if (text.isBlank()) return
+                  val key = prefs.getString(Prefs.API_KEY, "") ?: ""
+                  val model = (prefs.getString(Prefs.MODEL, Prefs.DEFAULT_MODEL) ?: "").ifBlank { Prefs.DEFAULT_MODEL }
+                  val instructions = (prefs.getString(Prefs.INSTRUCTIONS, Prefs.DEFAULT_INSTRUCTIONS) ?: "")
+                      .ifBlank { Prefs.DEFAULT_INSTRUCTIONS }
+
+                  worker.execute {
+                      val turns = history.getOrPut(title) { ArrayList() }
+                      turns.add(Gemini.Turn("user", text))
+                      while (turns.size > 10) turns.removeAt(0)
+                      while (turns.isNotEmpty() && turns[0].role != "user") turns.removeAt(0)
+
+                      val aiReply: String? = if (key.isNotBlank()) {
+                          try {
+                              Gemini.reply(key, model, instructions, ArrayList(turns))
+                          } catch (e: Exception) {
+                              null
+                          }
+                      } else {
+                          null
+                      }
+
+                      // if AI fails (no internet, bad key, quota), fall back to the custom message
+                      val finalReply = aiReply ?: customMessage
+                      if (finalReply.isBlank()) return@execute
+
+                      if (sendReply(action, finalReply)) {
+                          lastReply[title] = finalReply
+                          if (aiReply != null) turns.add(Gemini.Turn("model", aiReply))
+                      }
+                  }
+              }
+
+              private fun sendReply(action: Notification.Action, reply: String): Boolean {
+                  val inputs = action.remoteInputs ?: return false
+                  val input = inputs.firstOrNull() ?: return false
+                  val fill = Intent()
+                  val results = Bundle()
+                  results.putCharSequence(input.resultKey, reply)
+                  RemoteInput.addResultsToIntent(inputs, fill, results)
+                  return try {
+                      action.actionIntent.send(this, 0, fill)
+                      true
+                  } catch (e: PendingIntent.CanceledException) {
+                      false
+                  }
+              }
+
+              private fun findReplyAction(n: Notification): Notification.Action? {
+                  val all = ArrayList<Notification.Action>()
+                  n.actions?.let { all.addAll(it) }
+                  all.addAll(Notification.WearableExtender(n).actions)
+                  return all.firstOrNull { a -> a.remoteInputs?.isNotEmpty() == true }
+              }
+
+              private fun inSleepWindow(start: Int, end: Int): Boolean {
+                  val c = Calendar.getInstance()
+                  val now = c.get(Calendar.HOUR_OF_DAY) * 60 + c.get(Calendar.MINUTE)
+                  return if (start <= end) now in start until end else (now >= start || now < end)
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/sleepreply/MainActivity.kt <<'EOF'
+          package com.example.sleepreply
+
+          import android.app.Activity
+          import android.app.TimePickerDialog
+          import android.content.Context
+          import android.content.Intent
+          import android.content.SharedPreferences
+          import android.os.Bundle
+          import android.provider.Settings
+          import android.text.InputType
+          import android.view.View
+          import android.widget.Button
+          import android.widget.EditText
+          import android.widget.LinearLayout
+          import android.widget.RadioButton
+          import android.widget.RadioGroup
+          import android.widget.ScrollView
+          import android.widget.Switch
+          import android.widget.TextView
+          import android.widget.Toast
+
+          class MainActivity : Activity() {
+
+              private lateinit var prefs: SharedPreferences
+              private lateinit var accessStatus: TextView
+
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  prefs = getSharedPreferences(Prefs.NAME, Context.MODE_PRIVATE)
+
+                  val pad = (16 * resources.displayMetrics.density).toInt()
+                  val root = LinearLayout(this)
+                  root.orientation = LinearLayout.VERTICAL
+                  root.setPadding(pad, pad, pad, pad)
+
+                  fun label(t: String): TextView {
+                      val v = TextView(this)
+                      v.text = t
+                      v.setPadding(0, pad / 2, 0, 0)
+                      return v
+                  }
+
+                  val heading = TextView(this)
+                  heading.text = "Sleep Reply"
+                  heading.textSize = 24f
+                  root.addView(heading)
+
+                  accessStatus = TextView(this)
+                  root.addView(accessStatus)
+
+                  val accessButton = Button(this)
+                  accessButton.text = "Open notification access settings"
+                  accessButton.setOnClickListener {
+                      startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                  }
+                  root.addView(accessButton)
+
+                  val enabled = Switch(this)
+                  enabled.text = "Auto-reply on"
+                  enabled.isChecked = prefs.getBoolean(Prefs.ENABLED, true)
+                  enabled.setOnCheckedChangeListener { _, on ->
+                      prefs.edit().putBoolean(Prefs.ENABLED, on).apply()
+                  }
+                  root.addView(enabled)
+
+                  val windowSwitch = Switch(this)
+                  windowSwitch.text = "Only reply during the time window"
+                  windowSwitch.isChecked = prefs.getBoolean(Prefs.USE_WINDOW, true)
+                  windowSwitch.setOnCheckedChangeListener { _, on ->
+                      prefs.edit().putBoolean(Prefs.USE_WINDOW, on).apply()
+                  }
+                  root.addView(windowSwitch)
+
+                  val startButton = Button(this)
+                  val endButton = Button(this)
+                  fun refresh() {
+                      startButton.text = "Start: " + format(prefs.getInt(Prefs.START, 23 * 60))
+                      endButton.text = "End: " + format(prefs.getInt(Prefs.END, 7 * 60))
+                  }
+                  startButton.setOnClickListener { pickTime(Prefs.START, 23 * 60) { refresh() } }
+                  endButton.setOnClickListener { pickTime(Prefs.END, 7 * 60) { refresh() } }
+                  refresh()
+                  root.addView(startButton)
+                  root.addView(endButton)
+
+                  // ---- reply mode ----
+                  root.addView(label("Reply mode"))
+                  val group = RadioGroup(this)
+                  val rbCustom = RadioButton(this)
+                  rbCustom.id = View.generateViewId()
+                  rbCustom.text = "Custom message"
+                  val rbAi = RadioButton(this)
+                  rbAi.id = View.generateViewId()
+                  rbAi.text = "AI reply (Gemini)"
+                  group.addView(rbCustom)
+                  group.addView(rbAi)
+                  val aiOn = prefs.getString(Prefs.MODE, Prefs.MODE_CUSTOM) == Prefs.MODE_AI
+                  group.check(if (aiOn) rbAi.id else rbCustom.id)
+                  root.addView(group)
+
+                  // ---- AI settings ----
+                  val aiBox = LinearLayout(this)
+                  aiBox.orientation = LinearLayout.VERTICAL
+                  aiBox.visibility = if (aiOn) View.VISIBLE else View.GONE
+
+                  aiBox.addView(label("Gemini API key"))
+                  val keyInput = EditText(this)
+                  keyInput.hint = "Paste your API key"
+                  keyInput.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+                  keyInput.setText(prefs.getString(Prefs.API_KEY, "") ?: "")
+                  aiBox.addView(keyInput)
+
+                  aiBox.addView(label("Model"))
+                  val modelInput = EditText(this)
+                  modelInput.inputType = InputType.TYPE_CLASS_TEXT
+                  modelInput.setText(prefs.getString(Prefs.MODEL, Prefs.DEFAULT_MODEL) ?: Prefs.DEFAULT_MODEL)
+                  aiBox.addView(modelInput)
+
+                  aiBox.addView(label("AI instructions (how it should reply)"))
+                  val instrInput = EditText(this)
+                  instrInput.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                  instrInput.minLines = 4
+                  instrInput.setText(prefs.getString(Prefs.INSTRUCTIONS, Prefs.DEFAULT_INSTRUCTIONS) ?: Prefs.DEFAULT_INSTRUCTIONS)
+                  aiBox.addView(instrInput)
+
+                  val test = Button(this)
+                  test.text = "Test AI reply"
+                  test.setOnClickListener {
+                      val key = keyInput.text.toString().trim()
+                      val model = modelInput.text.toString().trim().ifEmpty { Prefs.DEFAULT_MODEL }
+                      if (key.isEmpty()) {
+                          Toast.makeText(this, "Enter your API key first", Toast.LENGTH_SHORT).show()
+                          return@setOnClickListener
+                      }
+                      Toast.makeText(this, "Testing...", Toast.LENGTH_SHORT).show()
+                      Thread {
+                          val result = try {
+                              "AI says: " + Gemini.reply(
+                                  key,
+                                  model,
+                                  "Reply with one short friendly sentence.",
+                                  listOf(Gemini.Turn("user", "Hi, are you there?"))
+                              )
+                          } catch (e: Exception) {
+                              "Failed: " + (e.message ?: "unknown error").take(200)
+                          }
+                          runOnUiThread { Toast.makeText(this, result, Toast.LENGTH_LONG).show() }
+                      }.start()
+                  }
+                  aiBox.addView(test)
+                  root.addView(aiBox)
+
+                  group.setOnCheckedChangeListener { _, id ->
+                      val ai = id == rbAi.id
+                      prefs.edit().putString(Prefs.MODE, if (ai) Prefs.MODE_AI else Prefs.MODE_CUSTOM).apply()
+                      aiBox.visibility = if (ai) View.VISIBLE else View.GONE
+                  }
+
+                  // ---- custom message ----
+                  root.addView(label("Custom message (also sent if the AI fails)"))
+                  val message = EditText(this)
+                  message.setText(prefs.getString(Prefs.MESSAGE, Prefs.DEFAULT_MESSAGE) ?: Prefs.DEFAULT_MESSAGE)
+                  root.addView(message)
+
+                  val save = Button(this)
+                  save.text = "Save settings"
+                  save.setOnClickListener {
+                      prefs.edit()
+                          .putString(Prefs.MESSAGE, message.text.toString())
+                          .putString(Prefs.API_KEY, keyInput.text.toString().trim())
+                          .putString(Prefs.MODEL, modelInput.text.toString().trim().ifEmpty { Prefs.DEFAULT_MODEL })
+                          .putString(Prefs.INSTRUCTIONS, instrInput.text.toString().ifBlank { Prefs.DEFAULT_INSTRUCTIONS })
+                          .apply()
+                      Toast.makeText(this, "Saved", Toast.LENGTH_SHORT).show()
+                  }
+                  root.addView(save)
+
+                  val note = TextView(this)
+                  note.text = "Replies to WhatsApp and Messenger messages (not group chats). In AI mode the incoming message text is sent to Google Gemini to write the reply."
+                  note.setPadding(0, pad / 2, 0, 0)
+                  root.addView(note)
+
+                  val scroll = ScrollView(this)
+                  scroll.addView(root)
+                  setContentView(scroll)
+              }
+
+              override fun onResume() {
+                  super.onResume()
+                  val list = Settings.Secure.getString(contentResolver, "enabled_notification_listeners") ?: ""
+                  accessStatus.text = if (list.contains(packageName)) {
+                      "Notification access: ON"
+                  } else {
+                      "Notification access: OFF. Tap the button below and allow Sleep Reply."
+                  }
+              }
+
+              private fun pickTime(key: String, def: Int, done: () -> Unit) {
+                  val cur = prefs.getInt(key, def)
+                  TimePickerDialog(this, { _, h, m ->
+                      prefs.edit().putInt(key, h * 60 + m).apply()
+                      done()
+                  }, cur / 60, cur % 60, true).show()
+              }
+
+              private fun format(mins: Int): String = String.format("%02d:%02d", mins / 60, mins % 60)
+          }
+          EOF
+
+      - name: Use fixed signing key
+        run: |
+          mkdir -p ~/.android
+          base64 -d > ~/.android/debug.keystore <<'EOF'
+          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
+          EOF
+
+      - name: Build APK
+        run: gradle assembleDebug --no-daemon
+
+      - name: Save APK as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SleepReply-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Publish APK to Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "v${{ github.run_number }}"
+          app/build/outputs/apk/debug/app-debug.apk
+          --repo "${{ github.repository }}"
+          --target "${{ github.sha }}"
+          --title "Sleep Reply build ${{ github.run_number }}"
