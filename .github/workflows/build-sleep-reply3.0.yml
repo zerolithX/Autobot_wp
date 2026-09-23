@@ -261,11 +261,32 @@ jobs:
               class HttpException(val code: Int, message: String) : Exception(message)
 
               fun reply(apiKey: String, model: String, instructions: String, turns: List<Turn>): String {
+                  return callWithRetry(apiKey, model, instructions, turns, thinkingOn = true, attempt = 0)
+              }
+
+              private fun callWithRetry(
+                  apiKey: String,
+                  model: String,
+                  instructions: String,
+                  turns: List<Turn>,
+                  thinkingOn: Boolean,
+                  attempt: Int
+              ): String {
                   return try {
-                      call(apiKey, model, instructions, turns, true)
+                      call(apiKey, model, instructions, turns, thinkingOn)
                   } catch (e: HttpException) {
-                      // some models reject the thinking setting, retry without it
-                      if (e.code == 400) call(apiKey, model, instructions, turns, false) else throw e
+                      when {
+                          // some models reject the thinking setting, retry once without it
+                          e.code == 400 && thinkingOn ->
+                              callWithRetry(apiKey, model, instructions, turns, false, attempt)
+                          // 503 = model overloaded, 429 = rate limited: both are transient,
+                          // back off and retry a few times before giving up
+                          (e.code == 503 || e.code == 429) && attempt < 3 -> {
+                              Thread.sleep(1000L * (1L shl attempt)) // 1s, 2s, 4s
+                              callWithRetry(apiKey, model, instructions, turns, thinkingOn, attempt + 1)
+                          }
+                          else -> throw e
+                      }
                   }
               }
 
