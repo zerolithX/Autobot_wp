@@ -1,0 +1,1255 @@
+name: Build Sleep Reply APK
+
+on:
+  workflow_dispatch:
+  push:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Create project files
+        shell: bash
+        run: |
+          set -e
+
+          mkdir -p app/src/main/java/com/example/sleepreply
+          mkdir -p app/src/main/res/drawable
+          mkdir -p app/src/main/res/mipmap-anydpi-v26
+          mkdir -p app/src/main/res/values
+
+          cat > settings.gradle.kts <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+
+          rootProject.name = "SleepReply"
+          include(":app")
+          EOF
+
+          cat > build.gradle.kts <<'EOF'
+          plugins {
+              id("com.android.application") version "8.5.2" apply false
+              id("org.jetbrains.kotlin.android") version "1.9.24" apply false
+          }
+          EOF
+
+          cat > app/build.gradle.kts <<'EOF'
+          plugins {
+              id("com.android.application")
+              id("org.jetbrains.kotlin.android")
+          }
+
+          android {
+              namespace = "com.example.sleepreply"
+              compileSdk = 34
+
+              defaultConfig {
+                  applicationId = "com.example.sleepreply"
+                  minSdk = 28
+                  targetSdk = 34
+                  versionCode = 3
+                  versionName = "3.0"
+              }
+
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+
+              kotlinOptions {
+                  jvmTarget = "17"
+              }
+          }
+          EOF
+
+          cat > app/src/main/res/values/colors.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <color name="ic_launcher_background">#0E0F12</color>
+          </resources>
+          EOF
+
+          cat > app/src/main/res/drawable/ic_launcher_foreground.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="108dp"
+              android:height="108dp"
+              android:viewportWidth="108"
+              android:viewportHeight="108">
+              <path
+                  android:fillColor="#FFFFFF"
+                  android:pathData="M54,24A30,30 0,1 0,54 84A30,30 0,1 0,54 24"
+                  android:fillAlpha="0.96" />
+              <path
+                  android:fillColor="#0E0F12"
+                  android:pathData="M54,34A20,20 0,1 0,54 74A20,20 0,1 0,54 34" />
+              <path
+                  android:fillColor="#FFFFFF"
+                  android:pathData="M50,42L50,66L70,54Z" />
+          </vector>
+          EOF
+
+          cat > app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+              <background android:drawable="@color/ic_launcher_background" />
+              <foreground android:drawable="@drawable/ic_launcher_foreground" />
+          </adaptive-icon>
+          EOF
+
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+              <uses-permission android:name="android.permission.INTERNET" />
+
+              <application
+                  android:allowBackup="true"
+                  android:icon="@mipmap/ic_launcher"
+                  android:label="Sleep Reply"
+                  android:theme="@android:style/Theme.Material.Light.DarkActionBar">
+
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+
+                  <service
+                      android:name=".ReplyService"
+                      android:exported="true"
+                      android:label="Sleep Reply"
+                      android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+                      <intent-filter>
+                          <action android:name="android.service.notification.NotificationListenerService" />
+                      </intent-filter>
+                  </service>
+
+              </application>
+          </manifest>
+          EOF
+
+          cat > app/src/main/java/com/example/sleepreply/Prefs.kt <<'EOF'
+          package com.example.sleepreply
+
+          object Prefs {
+              const val NAME = "sleep_reply"
+              const val ENABLED = "enabled"
+              const val MESSAGE = "message"
+              const val START = "start_minutes"
+              const val END = "end_minutes"
+              const val USE_WINDOW = "use_window"
+
+              const val MODE = "mode"
+              const val MODE_CUSTOM = "custom"
+              const val MODE_AI = "ai"
+
+              const val API_KEY = "gemini_key"
+              const val MODEL = "gemini_model"
+              const val INSTRUCTIONS = "ai_instructions"
+
+              const val DEFAULT_MESSAGE = "I'm sleeping, catch you later."
+              const val DEFAULT_MODEL = "gemini-3.8-flash"
+
+              const val DEFAULT_INSTRUCTIONS =
+                  "You are replying on behalf of the phone's owner. He is currently asleep. " +
+                  "Keep the reply very short (1-2 sentences maximum). " +
+                  "Match the sender's language style: Bangla, Banglish, or English. " +
+                  "Be warm, natural and concise. " +
+                  "Clearly say that the owner is sleeping and will reply when awake. " +
+                  "If the sender asks for basic information that can be answered safely from the message, " +
+                  "you may answer briefly, but never invent personal facts. " +
+                  "If something is urgent, tell them to call directly if appropriate. " +
+                  "Do not spam or send multiple replies for the same message."
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/sleepreply/Gemini.kt <<'EOF'
+          package com.example.sleepreply
+
+          import org.json.JSONArray
+          import org.json.JSONObject
+          import java.net.HttpURLConnection
+          import java.net.URL
+
+          object Gemini {
+
+              class Turn(val role: String, val text: String)
+
+              class HttpException(
+                  val code: Int,
+                  message: String
+              ) : Exception(message)
+
+              private const val MAX_RETRIES = 3
+
+              /*
+               * Gemini 3.x:
+               * - No temperature/topP/topK are sent.
+               * - No old thinkingBudget=0 is sent.
+               * - 503/429/5xx are retried with exponential backoff.
+               * - 400 is NOT blindly retried because it normally means
+               *   the request itself is invalid.
+               */
+              fun reply(
+                  apiKey: String,
+                  model: String,
+                  instructions: String,
+                  turns: List<Turn>
+              ): String {
+                  var lastError: Exception? = null
+
+                  for (attempt in 0..MAX_RETRIES) {
+                      try {
+                          return call(apiKey, model, instructions, turns)
+                      } catch (e: HttpException) {
+                          lastError = e
+
+                          val retryable =
+                              e.code == 429 ||
+                              e.code == 500 ||
+                              e.code == 502 ||
+                              e.code == 503 ||
+                              e.code == 504
+
+                          if (!retryable || attempt == MAX_RETRIES) {
+                              throw e
+                          }
+
+                          val delayMs = 1000L * (1L shl attempt)
+                          Thread.sleep(delayMs)
+                      } catch (e: Exception) {
+                          lastError = e
+                          throw e
+                      }
+                  }
+
+                  throw lastError ?: Exception("Gemini request failed")
+              }
+
+              private fun call(
+                  apiKey: String,
+                  model: String,
+                  instructions: String,
+                  turns: List<Turn>
+              ): String {
+
+                  val cleanModel = model.trim().ifEmpty {
+                      Prefs.DEFAULT_MODEL
+                  }
+
+                  val merged = ArrayList<Turn>()
+
+                  for (t in turns) {
+                      if (t.text.isBlank()) continue
+
+                      if (merged.isNotEmpty() && merged.last().role == t.role) {
+                          val previous = merged.removeAt(merged.size - 1)
+                          merged.add(
+                              Turn(
+                                  t.role,
+                                  previous.text + "\n" + t.text
+                              )
+                          )
+                      } else {
+                          merged.add(t)
+                      }
+                  }
+
+                  if (merged.isEmpty()) {
+                      throw Exception("No message to send")
+                  }
+
+                  val contents = JSONArray()
+
+                  for (t in merged) {
+                      contents.put(
+                          JSONObject()
+                              .put("role", t.role)
+                              .put(
+                                  "parts",
+                                  JSONArray().put(
+                                      JSONObject().put("text", t.text)
+                                  )
+                              )
+                      )
+                  }
+
+                  /*
+                   * Keep the generation config intentionally minimal.
+                   * This avoids old model-specific parameters that can
+                   * produce HTTP 400 with newer Gemini models.
+                   */
+                  val generation = JSONObject()
+                      .put("maxOutputTokens", 100)
+
+                  val systemInstruction = JSONObject()
+                      .put(
+                          "parts",
+                          JSONArray().put(
+                              JSONObject().put(
+                                  "text",
+                                  instructions.ifBlank {
+                                      Prefs.DEFAULT_INSTRUCTIONS
+                                  }
+                              )
+                          )
+                      )
+
+                  val body = JSONObject()
+                      .put("system_instruction", systemInstruction)
+                      .put("contents", contents)
+                      .put("generationConfig", generation)
+
+                  val url = URL(
+                      "https://generativelanguage.googleapis.com/v1beta/models/" +
+                          cleanModel +
+                          ":generateContent"
+                  )
+
+                  val conn = url.openConnection() as HttpURLConnection
+
+                  try {
+                      conn.requestMethod = "POST"
+                      conn.connectTimeout = 15000
+                      conn.readTimeout = 30000
+                      conn.doOutput = true
+
+                      conn.setRequestProperty(
+                          "Content-Type",
+                          "application/json; charset=UTF-8"
+                      )
+                      conn.setRequestProperty(
+                          "x-goog-api-key",
+                          apiKey.trim()
+                      )
+
+                      conn.outputStream.use { output ->
+                          output.write(
+                              body.toString().toByteArray(Charsets.UTF_8)
+                          )
+                      }
+
+                      val code = conn.responseCode
+
+                      val stream =
+                          if (code in 200..299) {
+                              conn.inputStream
+                          } else {
+                              conn.errorStream
+                          }
+
+                      val response =
+                          stream?.bufferedReader()?.use { it.readText() }
+                              ?: ""
+
+                      if (code !in 200..299) {
+                          throw HttpException(
+                              code,
+                              "HTTP $code: $response"
+                          )
+                      }
+
+                      val json = JSONObject(response)
+
+                      val candidates =
+                          json.optJSONArray("candidates")
+                              ?: throw Exception(
+                                  "Gemini returned no candidates: $response"
+                              )
+
+                      if (candidates.length() == 0) {
+                          throw Exception(
+                              "Gemini returned zero candidates: $response"
+                          )
+                      }
+
+                      val candidate = candidates.getJSONObject(0)
+
+                      val content = candidate.optJSONObject("content")
+                          ?: throw Exception(
+                              "Gemini returned no content: $response"
+                          )
+
+                      val parts = content.optJSONArray("parts")
+                          ?: throw Exception(
+                              "Gemini returned no parts: $response"
+                          )
+
+                      val result = StringBuilder()
+
+                      for (i in 0 until parts.length()) {
+                          val part = parts.optJSONObject(i)
+                          if (part != null) {
+                              val text = part.optString("text", "")
+                              if (text.isNotBlank()) {
+                                  result.append(text)
+                              }
+                          }
+                      }
+
+                      val output = result.toString().trim()
+
+                      if (output.isEmpty()) {
+                          throw Exception(
+                              "Gemini returned an empty reply: $response"
+                          )
+                      }
+
+                      return output
+
+                  } finally {
+                      conn.disconnect()
+                  }
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/sleepreply/ReplyService.kt <<'EOF'
+          package com.example.sleepreply
+
+          import android.app.Notification
+          import android.app.PendingIntent
+          import android.app.RemoteInput
+          import android.content.Context
+          import android.content.Intent
+          import android.os.Bundle
+          import android.service.notification.NotificationListenerService
+          import android.service.notification.StatusBarNotification
+          import java.util.Calendar
+          import java.util.concurrent.ConcurrentHashMap
+          import java.util.concurrent.Executors
+
+          class ReplyService : NotificationListenerService() {
+
+              private val lastSeen = HashMap<String, String>()
+              private val lastReply = ConcurrentHashMap<String, String>()
+              private val history = HashMap<String, ArrayList<Gemini.Turn>>()
+
+              private val worker = Executors.newSingleThreadExecutor()
+
+              override fun onDestroy() {
+                  worker.shutdown()
+                  super.onDestroy()
+              }
+
+              override fun onNotificationPosted(
+                  sbn: StatusBarNotification
+              ) {
+                  val prefs = getSharedPreferences(
+                      Prefs.NAME,
+                      Context.MODE_PRIVATE
+                  )
+
+                  if (!prefs.getBoolean(Prefs.ENABLED, true)) return
+
+                  if (
+                      sbn.packageName !in listOf(
+                          "com.whatsapp",
+                          "com.whatsapp.w4b",
+                          "com.facebook.orca",
+                          "com.facebook.mlite"
+                      )
+                  ) return
+
+                  if (
+                      prefs.getBoolean(Prefs.USE_WINDOW, true) &&
+                      !inSleepWindow(
+                          prefs.getInt(Prefs.START, 23 * 60),
+                          prefs.getInt(Prefs.END, 7 * 60)
+                      )
+                  ) return
+
+                  val notification = sbn.notification
+
+                  if (
+                      (notification.flags and Notification.FLAG_GROUP_SUMMARY) != 0
+                  ) return
+
+                  if (
+                      notification.extras.getBoolean(
+                          Notification.EXTRA_IS_GROUP_CONVERSATION,
+                          false
+                      )
+                  ) return
+
+                  val title =
+                      notification.extras
+                          .getCharSequence(Notification.EXTRA_TITLE)
+                          ?.toString()
+                          ?: return
+
+                  val text =
+                      notification.extras
+                          .getCharSequence(Notification.EXTRA_TEXT)
+                          ?.toString()
+                          ?: ""
+
+                  if (text.isBlank()) return
+
+                  val customMessage =
+                      prefs.getString(
+                          Prefs.MESSAGE,
+                          Prefs.DEFAULT_MESSAGE
+                      ) ?: Prefs.DEFAULT_MESSAGE
+
+                  val aiMode =
+                      prefs.getString(
+                          Prefs.MODE,
+                          Prefs.MODE_CUSTOM
+                      ) == Prefs.MODE_AI
+
+                  // Ignore notifications caused by our own reply.
+                  if (
+                      customMessage.isNotEmpty() &&
+                      text.contains(customMessage)
+                  ) return
+
+                  val previousReply = lastReply[title]
+
+                  if (
+                      previousReply != null &&
+                      (
+                          text == previousReply ||
+                          text.endsWith(": $previousReply")
+                      )
+                  ) return
+
+                  val signature =
+                      notification.`when`.toString() + "|" + text
+
+                  if (lastSeen[title] == signature) return
+
+                  val action = findReplyAction(notification) ?: return
+
+                  lastSeen[title] = signature
+
+                  if (!aiMode) {
+                      if (customMessage.isBlank()) return
+
+                      if (sendReply(action, customMessage)) {
+                          lastReply[title] = customMessage
+                      }
+
+                      return
+                  }
+
+                  val key =
+                      prefs.getString(Prefs.API_KEY, "") ?: ""
+
+                  val model =
+                      prefs.getString(
+                          Prefs.MODEL,
+                          Prefs.DEFAULT_MODEL
+                      )
+                          ?.trim()
+                          ?.ifBlank { Prefs.DEFAULT_MODEL }
+                          ?: Prefs.DEFAULT_MODEL
+
+                  val instructions =
+                      prefs.getString(
+                          Prefs.INSTRUCTIONS,
+                          Prefs.DEFAULT_INSTRUCTIONS
+                      )
+                          ?.ifBlank { Prefs.DEFAULT_INSTRUCTIONS }
+                          ?: Prefs.DEFAULT_INSTRUCTIONS
+
+                  worker.execute {
+
+                      val turns =
+                          history.getOrPut(title) {
+                              ArrayList()
+                          }
+
+                      turns.add(
+                          Gemini.Turn(
+                              "user",
+                              text
+                          )
+                      )
+
+                      while (turns.size > 10) {
+                          turns.removeAt(0)
+                      }
+
+                      while (
+                          turns.isNotEmpty() &&
+                          turns[0].role != "user"
+                      ) {
+                          turns.removeAt(0)
+                      }
+
+                      val aiReply =
+                          if (key.isNotBlank()) {
+                              try {
+                                  Gemini.reply(
+                                      key,
+                                      model,
+                                      instructions,
+                                      ArrayList(turns)
+                                  )
+                              } catch (_: Exception) {
+                                  null
+                              }
+                          } else {
+                              null
+                          }
+
+                      /*
+                       * If Gemini fails after its internal retries,
+                       * send the custom fallback instead.
+                       */
+                      val finalReply =
+                          aiReply ?: customMessage
+
+                      if (finalReply.isBlank()) {
+                          return@execute
+                      }
+
+                      if (sendReply(action, finalReply)) {
+                          lastReply[title] = finalReply
+
+                          if (aiReply != null) {
+                              turns.add(
+                                  Gemini.Turn(
+                                      "model",
+                                      aiReply
+                                  )
+                              )
+                          }
+                      }
+                  }
+              }
+
+              private fun sendReply(
+                  action: Notification.Action,
+                  reply: String
+              ): Boolean {
+
+                  val inputs = action.remoteInputs
+                      ?: return false
+
+                  val input = inputs.firstOrNull()
+                      ?: return false
+
+                  val fill = Intent()
+                  val results = Bundle()
+
+                  results.putCharSequence(
+                      input.resultKey,
+                      reply
+                  )
+
+                  RemoteInput.addResultsToIntent(
+                      inputs,
+                      fill,
+                      results
+                  )
+
+                  return try {
+                      action.actionIntent.send(
+                          this,
+                          0,
+                          fill
+                      )
+                      true
+                  } catch (
+                      _: PendingIntent.CanceledException
+                  ) {
+                      false
+                  }
+              }
+
+              private fun findReplyAction(
+                  notification: Notification
+              ): Notification.Action? {
+
+                  val actions = ArrayList<Notification.Action>()
+
+                  notification.actions?.let {
+                      actions.addAll(it)
+                  }
+
+                  actions.addAll(
+                      Notification.WearableExtender(
+                          notification
+                      ).actions
+                  )
+
+                  return actions.firstOrNull { action ->
+                      action.remoteInputs?.isNotEmpty() == true
+                  }
+              }
+
+              private fun inSleepWindow(
+                  start: Int,
+                  end: Int
+              ): Boolean {
+
+                  val calendar = Calendar.getInstance()
+
+                  val now =
+                      calendar.get(Calendar.HOUR_OF_DAY) * 60 +
+                          calendar.get(Calendar.MINUTE)
+
+                  return if (start <= end) {
+                      now in start until end
+                  } else {
+                      now >= start || now < end
+                  }
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/sleepreply/MainActivity.kt <<'EOF'
+          package com.example.sleepreply
+
+          import android.app.Activity
+          import android.app.TimePickerDialog
+          import android.content.Context
+          import android.content.Intent
+          import android.content.SharedPreferences
+          import android.os.Bundle
+          import android.provider.Settings
+          import android.text.InputType
+          import android.view.View
+          import android.widget.Button
+          import android.widget.EditText
+          import android.widget.LinearLayout
+          import android.widget.RadioButton
+          import android.widget.RadioGroup
+          import android.widget.ScrollView
+          import android.widget.Switch
+          import android.widget.TextView
+          import android.widget.Toast
+
+          class MainActivity : Activity() {
+
+              private lateinit var prefs: SharedPreferences
+              private lateinit var accessStatus: TextView
+
+              override fun onCreate(
+                  savedInstanceState: Bundle?
+              ) {
+                  super.onCreate(savedInstanceState)
+
+                  prefs = getSharedPreferences(
+                      Prefs.NAME,
+                      Context.MODE_PRIVATE
+                  )
+
+                  val pad =
+                      (16 * resources.displayMetrics.density)
+                          .toInt()
+
+                  val root = LinearLayout(this)
+                  root.orientation = LinearLayout.VERTICAL
+                  root.setPadding(
+                      pad,
+                      pad,
+                      pad,
+                      pad
+                  )
+
+                  fun label(text: String): TextView {
+                      val view = TextView(this)
+                      view.text = text
+                      view.setPadding(
+                          0,
+                          pad / 2,
+                          0,
+                          0
+                      )
+                      return view
+                  }
+
+                  val heading = TextView(this)
+                  heading.text = "Sleep Reply"
+                  heading.textSize = 24f
+                  root.addView(heading)
+
+                  accessStatus = TextView(this)
+                  root.addView(accessStatus)
+
+                  val accessButton = Button(this)
+                  accessButton.text =
+                      "Open notification access settings"
+
+                  accessButton.setOnClickListener {
+                      startActivity(
+                          Intent(
+                              Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS
+                          )
+                      )
+                  }
+
+                  root.addView(accessButton)
+
+                  val enabled = Switch(this)
+                  enabled.text = "Auto-reply on"
+                  enabled.isChecked =
+                      prefs.getBoolean(
+                          Prefs.ENABLED,
+                          true
+                      )
+
+                  enabled.setOnCheckedChangeListener { _, on ->
+                      prefs.edit()
+                          .putBoolean(
+                              Prefs.ENABLED,
+                              on
+                          )
+                          .apply()
+                  }
+
+                  root.addView(enabled)
+
+                  val windowSwitch = Switch(this)
+                  windowSwitch.text =
+                      "Only reply during the time window"
+
+                  windowSwitch.isChecked =
+                      prefs.getBoolean(
+                          Prefs.USE_WINDOW,
+                          true
+                      )
+
+                  windowSwitch.setOnCheckedChangeListener { _, on ->
+                      prefs.edit()
+                          .putBoolean(
+                              Prefs.USE_WINDOW,
+                              on
+                          )
+                          .apply()
+                  }
+
+                  root.addView(windowSwitch)
+
+                  val startButton = Button(this)
+                  val endButton = Button(this)
+
+                  fun refreshTimes() {
+                      startButton.text =
+                          "Start: " +
+                              format(
+                                  prefs.getInt(
+                                      Prefs.START,
+                                      23 * 60
+                                  )
+                              )
+
+                      endButton.text =
+                          "End: " +
+                              format(
+                                  prefs.getInt(
+                                      Prefs.END,
+                                      7 * 60
+                                  )
+                              )
+                  }
+
+                  startButton.setOnClickListener {
+                      pickTime(
+                          Prefs.START,
+                          23 * 60
+                      ) {
+                          refreshTimes()
+                      }
+                  }
+
+                  endButton.setOnClickListener {
+                      pickTime(
+                          Prefs.END,
+                          7 * 60
+                      ) {
+                          refreshTimes()
+                      }
+                  }
+
+                  refreshTimes()
+
+                  root.addView(startButton)
+                  root.addView(endButton)
+
+                  root.addView(label("Reply mode"))
+
+                  val group = RadioGroup(this)
+
+                  val rbCustom = RadioButton(this)
+                  rbCustom.id = View.generateViewId()
+                  rbCustom.text = "Custom message"
+
+                  val rbAi = RadioButton(this)
+                  rbAi.id = View.generateViewId()
+                  rbAi.text = "AI reply (Gemini)"
+
+                  group.addView(rbCustom)
+                  group.addView(rbAi)
+
+                  val aiOn =
+                      prefs.getString(
+                          Prefs.MODE,
+                          Prefs.MODE_CUSTOM
+                      ) == Prefs.MODE_AI
+
+                  group.check(
+                      if (aiOn) {
+                          rbAi.id
+                      } else {
+                          rbCustom.id
+                      }
+                  )
+
+                  root.addView(group)
+
+                  val aiBox = LinearLayout(this)
+                  aiBox.orientation =
+                      LinearLayout.VERTICAL
+
+                  aiBox.visibility =
+                      if (aiOn) {
+                          View.VISIBLE
+                      } else {
+                          View.GONE
+                      }
+
+                  aiBox.addView(
+                      label("Gemini API key")
+                  )
+
+                  val keyInput = EditText(this)
+                  keyInput.hint =
+                      "Paste your API key"
+
+                  keyInput.inputType =
+                      InputType.TYPE_CLASS_TEXT or
+                          InputType.TYPE_TEXT_VARIATION_PASSWORD
+
+                  keyInput.setText(
+                      prefs.getString(
+                          Prefs.API_KEY,
+                          ""
+                      ) ?: ""
+                  )
+
+                  aiBox.addView(keyInput)
+
+                  aiBox.addView(label("Model"))
+
+                  val modelInput = EditText(this)
+                  modelInput.inputType =
+                      InputType.TYPE_CLASS_TEXT
+
+                  modelInput.setText(
+                      prefs.getString(
+                          Prefs.MODEL,
+                          Prefs.DEFAULT_MODEL
+                      ) ?: Prefs.DEFAULT_MODEL
+                  )
+
+                  aiBox.addView(modelInput)
+
+                  aiBox.addView(
+                      label(
+                          "AI instructions (how it should reply)"
+                      )
+                  )
+
+                  val instrInput = EditText(this)
+
+                  instrInput.inputType =
+                      InputType.TYPE_CLASS_TEXT or
+                          InputType.TYPE_TEXT_FLAG_MULTI_LINE
+
+                  instrInput.minLines = 5
+
+                  instrInput.setText(
+                      prefs.getString(
+                          Prefs.INSTRUCTIONS,
+                          Prefs.DEFAULT_INSTRUCTIONS
+                      ) ?: Prefs.DEFAULT_INSTRUCTIONS
+                  )
+
+                  aiBox.addView(instrInput)
+
+                  val test = Button(this)
+                  test.text = "Test AI reply"
+
+                  test.setOnClickListener {
+
+                      val key =
+                          keyInput.text
+                              .toString()
+                              .trim()
+
+                      val model =
+                          modelInput.text
+                              .toString()
+                              .trim()
+                              .ifEmpty {
+                                  Prefs.DEFAULT_MODEL
+                              }
+
+                      if (key.isEmpty()) {
+                          Toast.makeText(
+                              this,
+                              "Enter your API key first",
+                              Toast.LENGTH_SHORT
+                          ).show()
+                          return@setOnClickListener
+                      }
+
+                      Toast.makeText(
+                          this,
+                          "Testing Gemini...",
+                          Toast.LENGTH_SHORT
+                      ).show()
+
+                      Thread {
+
+                          val result =
+                              try {
+                                  "AI says: " +
+                                      Gemini.reply(
+                                          key,
+                                          model,
+                                          "Reply with one short friendly sentence.",
+                                          listOf(
+                                              Gemini.Turn(
+                                                  "user",
+                                                  "Hi, are you there?"
+                                              )
+                                          )
+                                      )
+                              } catch (e: Exception) {
+                                  "Failed: " +
+                                      (
+                                          e.message
+                                              ?: "unknown error"
+                                          ).take(500)
+                              }
+
+                          runOnUiThread {
+                              Toast.makeText(
+                                  this,
+                                  result,
+                                  Toast.LENGTH_LONG
+                              ).show()
+                          }
+
+                      }.start()
+                  }
+
+                  aiBox.addView(test)
+                  root.addView(aiBox)
+
+                  group.setOnCheckedChangeListener { _, id ->
+
+                      val ai =
+                          id == rbAi.id
+
+                      prefs.edit()
+                          .putString(
+                              Prefs.MODE,
+                              if (ai) {
+                                  Prefs.MODE_AI
+                              } else {
+                                  Prefs.MODE_CUSTOM
+                              }
+                          )
+                          .apply()
+
+                      aiBox.visibility =
+                          if (ai) {
+                              View.VISIBLE
+                          } else {
+                              View.GONE
+                          }
+                  }
+
+                  root.addView(
+                      label(
+                          "Custom message (also sent if the AI fails)"
+                      )
+                  )
+
+                  val message = EditText(this)
+
+                  message.setText(
+                      prefs.getString(
+                          Prefs.MESSAGE,
+                          Prefs.DEFAULT_MESSAGE
+                      ) ?: Prefs.DEFAULT_MESSAGE
+                  )
+
+                  root.addView(message)
+
+                  val save = Button(this)
+                  save.text = "Save settings"
+
+                  save.setOnClickListener {
+
+                      prefs.edit()
+                          .putString(
+                              Prefs.MESSAGE,
+                              message.text.toString()
+                          )
+                          .putString(
+                              Prefs.API_KEY,
+                              keyInput.text.toString().trim()
+                          )
+                          .putString(
+                              Prefs.MODEL,
+                              modelInput.text.toString()
+                                  .trim()
+                                  .ifEmpty {
+                                      Prefs.DEFAULT_MODEL
+                                  }
+                          )
+                          .putString(
+                              Prefs.INSTRUCTIONS,
+                              instrInput.text.toString()
+                                  .ifBlank {
+                                      Prefs.DEFAULT_INSTRUCTIONS
+                                  }
+                          )
+                          .apply()
+
+                      Toast.makeText(
+                          this,
+                          "Saved",
+                          Toast.LENGTH_SHORT
+                      ).show()
+                  }
+
+                  root.addView(save)
+
+                  val note = TextView(this)
+
+                  note.text =
+                      "Replies to WhatsApp and Messenger messages " +
+                          "(not group chats). AI mode sends the incoming " +
+                          "message text to Google Gemini."
+
+                  note.setPadding(
+                      0,
+                      pad / 2,
+                      0,
+                      0
+                  )
+
+                  root.addView(note)
+
+                  val scroll = ScrollView(this)
+                  scroll.addView(root)
+                  setContentView(scroll)
+              }
+
+              override fun onResume() {
+                  super.onResume()
+
+                  val enabledListeners =
+                      Settings.Secure.getString(
+                          contentResolver,
+                          "enabled_notification_listeners"
+                      ) ?: ""
+
+                  accessStatus.text =
+                      if (
+                          enabledListeners.contains(packageName)
+                      ) {
+                          "Notification access: ON"
+                      } else {
+                          "Notification access: OFF. Tap the button below and allow Sleep Reply."
+                      }
+              }
+
+              private fun pickTime(
+                  key: String,
+                  defaultValue: Int,
+                  done: () -> Unit
+              ) {
+
+                  val current =
+                      prefs.getInt(
+                          key,
+                          defaultValue
+                      )
+
+                  TimePickerDialog(
+                      this,
+                      { _, hour, minute ->
+                          prefs.edit()
+                              .putInt(
+                                  key,
+                                  hour * 60 + minute
+                              )
+                              .apply()
+                          done()
+                      },
+                      current / 60,
+                      current % 60,
+                      true
+                  ).show()
+              }
+
+              private fun format(
+                  minutes: Int
+              ): String {
+                  return String.format(
+                      "%02d:%02d",
+                      minutes / 60,
+                      minutes % 60
+                  )
+              }
+          }
+          EOF
+
+      - name: Build APK
+        run: gradle assembleDebug --no-daemon
+
+      - name: Save APK as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SleepReply-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Publish APK to Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v${{ github.run_number }}" \
+            app/build/outputs/apk/debug/app-debug.apk \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "Sleep Reply build ${{ github.run_number }}" \
+            --notes "Sleep Reply build ${{ github.run_number }}"
